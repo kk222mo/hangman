@@ -33,7 +33,7 @@ func reqForChar(game *Game, reader *bufio.Reader, writer *bufio.Writer) bool {
 	if len([]rune(str)) == 0 {
 		return false
 	}
-	char := []rune(str)[0]
+	char := []rune(strings.ToLower(str))[0]
 	if err != nil || !('а' <= char && char <= 'я') {
 		writer.WriteString(UNRESOLVED_SYMBOL)
 		return false
@@ -64,6 +64,17 @@ func initGame() Game {
 	return Game{Stage: 0, Word: mainDictionary.Words[rand.Intn(mainDictionary.Size)], UsedChars: make(map[rune]bool)}
 }
 
+func askForPlayAgain(writer *bufio.Writer, reader *bufio.Reader) bool {
+	writer.WriteString(PLAY_AGAIN)
+	writer.Flush()
+	str, err := reader.ReadString('\n')
+	char := []rune(strings.ToLower(str))[0]
+	if err != nil || char != 'д' {
+		return false
+	}
+	return true
+}
+
 func processClient(conn net.Conn) {
 	writer := bufio.NewWriter(conn)
 	writer.WriteString(WELCOME_MESSAGE)
@@ -87,27 +98,32 @@ func processClient(conn net.Conn) {
 		}
 		if guessedLen == len([]rune(game.Word)) {
 			writer.WriteString(strings.Replace(WIN_MSG, "#word#", game.Word, 1))
-			writer.Flush()
-			str, err := reader.ReadString('\n')
-			char := []rune(str)[0]
-			if err != nil || char != 'Д' {
+			if askForPlayAgain(writer, reader) {
+				game = initGame()
+				continue
+			} else {
 				return
 			}
-			game = initGame()
-			continue
+
 		}
 
 		stageText = strings.ReplaceAll(stageText, "#word#", guessedWord)
 		writer.WriteString(stageText)
 		printUsed(game, writer)
-		for !reqForChar(&game, reader, writer) {
+		for {
+			res := reqForChar(&game, reader, writer)
 			writer.Flush()
 			if testForLoose(game, writer) {
-				return
+				if askForPlayAgain(writer, reader) {
+					game = initGame()
+					break
+				} else {
+					return
+				}
 			}
-		}
-		if testForLoose(game, writer) {
-			return
+			if res {
+				break
+			}
 		}
 	}
 }
