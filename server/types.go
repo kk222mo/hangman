@@ -7,6 +7,7 @@ type Game struct {
 }
 
 const WELCOME_MESSAGE = "Привет! Это игра \"Виселица\"\nНачинаем игру!\n"
+const STATS_TEXT = "Ваш IP: #ip#\nСлов отгадано: #guessed#\nПроиграно: #losses# раз\n\n"
 const USED_TEXT = "Использованные буквы: "
 const SUGGESTION_TEXT = "Введите букву: "
 const UNRESOLVED_SYMBOL = "Неизвестная буква!\nВведите новую\n"

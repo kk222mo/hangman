@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/kk222mo/hangman/data"
+	"github.com/kk222mo/hangman/database"
 	"math/rand"
 	"net"
 	"strconv"
@@ -34,6 +35,9 @@ func reqForChar(game *Game, reader *bufio.Reader, writer *bufio.Writer) bool {
 		return false
 	}
 	char := []rune(strings.ToLower(str))[0]
+	if char == 'ё' {
+		char = 'е'
+	}
 	if err != nil || !('а' <= char && char <= 'я') {
 		writer.WriteString(UNRESOLVED_SYMBOL)
 		return false
@@ -68,7 +72,11 @@ func askForPlayAgain(writer *bufio.Writer, reader *bufio.Reader) bool {
 	writer.WriteString(PLAY_AGAIN)
 	writer.Flush()
 	str, err := reader.ReadString('\n')
-	char := []rune(strings.ToLower(str))[0]
+	chararr := []rune(strings.ToLower(str))
+	if len(chararr) == 0 {
+		return false
+	}
+	char := chararr[0]
 	if err != nil || char != 'д' {
 		return false
 	}
@@ -78,6 +86,14 @@ func askForPlayAgain(writer *bufio.Writer, reader *bufio.Reader) bool {
 func processClient(conn net.Conn) {
 	writer := bufio.NewWriter(conn)
 	writer.WriteString(WELCOME_MESSAGE)
+
+	statsText := STATS_TEXT
+	userIp := strings.Split(conn.RemoteAddr().String(), ":")[0]
+	statsText = strings.Replace(statsText, "#ip#", userIp, 1)
+	playerInfo, _ := database.ReadPlayerInfo(userIp)
+	statsText = strings.Replace(statsText, "#guessed#", strconv.Itoa(playerInfo.WordsGuessed), 1)
+	statsText = strings.Replace(statsText, "#losses#", strconv.Itoa(playerInfo.Losses), 1)
+	writer.WriteString(statsText)
 	writer.Flush()
 	reader := bufio.NewReader(conn)
 	defer conn.Close()
@@ -98,6 +114,8 @@ func processClient(conn net.Conn) {
 		}
 		if guessedLen == len([]rune(game.Word)) {
 			writer.WriteString(strings.Replace(WIN_MSG, "#word#", game.Word, 1))
+			playerInfo.WordsGuessed++
+			database.InsertOrUpdatePlayer(playerInfo)
 			if askForPlayAgain(writer, reader) {
 				game = initGame()
 				continue
@@ -114,6 +132,8 @@ func processClient(conn net.Conn) {
 			res := reqForChar(&game, reader, writer)
 			writer.Flush()
 			if testForLoose(game, writer) {
+				playerInfo.Losses++
+				database.InsertOrUpdatePlayer(playerInfo)
 				if askForPlayAgain(writer, reader) {
 					game = initGame()
 					break
